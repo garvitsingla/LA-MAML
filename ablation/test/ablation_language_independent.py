@@ -101,29 +101,25 @@ def select_missions(env_name):
     return mission_map[env_name]
 
 
-env_name = "ActionObjDoor"
+env_name = "GoToObjDoor"
 room_size = 7
 num_dists = 3
 max_steps = 350
-delta_theta = 0.9
-num_batches = 50
+delta_theta = 0.7
 
 missions = select_missions(env_name)
 make_env = partial(build_env, env_name, room_size, num_dists, max_steps, missions)
 env = make_env()
 
-
-# Trained on the model
-model = "ActionObjDoor_7_3_300"  
-print(f"env name {env} \n model used: {model}\n")
+print(f"env name {env} \n")
 
 
 
 
 # restore saved lang-adapted policy 
 
-lang_model = torch.load(f"lang_model/lang_policy_{model}_{delta_theta}_{num_batches}.pth", map_location=device)
-with open(f"lang_model/vectorizer_lang_{model}_{delta_theta}_{num_batches}.pkl", "rb") as f:
+lang_model = torch.load(f"lang_model/lang_policy_{env_name}.pth", map_location=device)
+with open(f"lang_model/vectorizer_lang_{env_name}.pkl", "rb") as f:
     vectorizer_lang = pickle.load(f)
 
 
@@ -159,7 +155,7 @@ mission_adapter.eval()
 
 # Policy Only Ablation
 
-policy_only_model = torch.load(f"ablation_policy_only/lang_policy_{model}_{num_batches}.pth", map_location=device)
+policy_only_model = torch.load(f"ablation_language_independent_model/lang_policy_{env_name}.pth", map_location=device)
 
 policy_only = CategoricalMLPPolicy(
     input_size=input_size,
@@ -222,14 +218,14 @@ results_policy_only = []
 print("Comparing language-adapted policy and random policy on random missions:")
 for i in range(N_MISSIONS):
     mission = random.choice(missions)
-    print(f"\nMission {i+1}/{N_MISSIONS}: '{mission}'")
+    # print(f"\nMission {i+1}/{N_MISSIONS}: '{mission}'")
 
     # 1. Lang-adapted policy
     SL.vectorizer = vectorizer_lang
     SL.mission_encoder = mission_encoder
     theta_prime = get_language_adapted_params(policy_lang, mission, mission_encoder, mission_adapter, vectorizer_lang, device)
     lang_steps = []
-    print("  [Lang-adapted policy episodes]")
+    # print("  [Lang-adapted policy episodes]")
     for ep in range(N_EPISODES):
         env.reset_task(mission)
         steps = evaluate_policy(env, policy_lang, params=theta_prime)
@@ -250,7 +246,7 @@ for i in range(N_MISSIONS):
     )
 
     policy_only_steps = []
-    print("  [Policy only episodes]")
+    # print("  [Policy only episodes]")
     for ep in range(N_EPISODES):
         env.reset_task(mission)
         steps = evaluate_policy(env, policy_only, params=theta_prime)
@@ -265,8 +261,6 @@ for i in range(N_MISSIONS):
 end_time = time.time()
 
 print(f"Execution time: {(end_time - start_time)/60} minutes\n")
-
-print(f"room_size: {room_size}\n num_dists: {num_dists}\n max_steps: {max_steps}\n available missions: {missions}\n delta_theta: {delta_theta}\n num_batches: {num_batches}\n")
 
 # Results
 print("\n===== FINAL AGGREGATE RESULTS =====")

@@ -114,25 +114,22 @@ def select_missions(env_name):
     return mission_map[env_name]
 
 
-env_name = "ActionObjDoor"
+env_name = "GoToOpen"
 room_size = 7
 num_dists = 3
 max_steps = 350
-delta_theta = 0.9
-num_batches = 50
+delta_theta = 0.7
 
 missions = select_missions(env_name)
 make_env = partial(build_env, env_name, room_size, num_dists, max_steps, missions)
 env = make_env()
 
-# Trained on the model
-model = "ActionObjDoor_7_3_300"  
-print(f"env name {env} \n model used: {model}\n")
+print(f"env name {env}\n")
 
 
 # restore saved lang-adapted policy 
-ckpt = torch.load(f"lang_model/lang_policy_{model}_{delta_theta}_{num_batches}.pth", map_location=device)
-with open(f"lang_model/vectorizer_lang_{model}_{delta_theta}_{num_batches}.pkl", "rb") as f:
+ckpt = torch.load(f"lang_model/lang_policy_{env_name}.pth", map_location=device)
+with open(f"lang_model/vectorizer_lang_{env_name}.pkl", "rb") as f:
     vectorizer = pickle.load(f)
 
 
@@ -169,7 +166,7 @@ mission_adapter.eval()
 
 # restore saved maml policy
 
-ckpt_base = f"maml_model/maml_{model}_{num_batches}"
+ckpt_base = f"maml_model/maml_{env_name}"
 with open(ckpt_base + "_vectorizer.pkl", "rb") as f:
     sampler_maml.vectorizer = pickle.load(f)
 
@@ -290,10 +287,10 @@ results_random = []
 print("Comparing language-adapted policy and random policy on random missions:")
 for i in range(N_MISSIONS):
     mission = random.choice(missions)
-    print(f"\nMission {i+1}/{N_MISSIONS}: '{mission}'")
+    # print(f"\nMission {i+1}/{N_MISSIONS}: '{mission}'")
 
     # 1. Lang-adapted policy
-    print("  [Lang-adapted policy episodes]")
+    # print("  [Lang-adapted policy episodes]")
     theta_prime = get_language_adapted_params(policy_lang, mission, mission_encoder, mission_adapter, vectorizer, device)
     lang_steps = []
 
@@ -308,7 +305,7 @@ for i in range(N_MISSIONS):
 
 
     # 2. MAML policy
-    print(" [Evaluating with maml adaptation]")
+    # print(" [Evaluating with maml adaptation]")
     maml_params = adapt_policy_for_task(mission, policy_maml, num_steps=2, fast_lr=0.25, batch_size=10, baseline=baseline)
     maml_steps = []
 
@@ -323,7 +320,7 @@ for i in range(N_MISSIONS):
 
 
     # 3. Randomly initialized policy
-    print("  [Random policy episodes]")
+    # print("  [Random policy episodes]")
     scratch_policy = CategoricalMLPPolicy(
         input_size=input_size_lang,
         output_size=output_size,
@@ -345,8 +342,6 @@ for i in range(N_MISSIONS):
 end_time = time.time()
 
 print(f"Execution time: {(end_time - start_time)/60} minutes\n")
-
-print(f"room_size: {room_size}\n num_dists: {num_dists}\n max_steps: {max_steps}\n available missions: {missions}\n delta_theta: {delta_theta}\n")
 
 # Results
 print("\n===== FINAL AGGREGATE RESULTS =====")

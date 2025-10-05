@@ -217,10 +217,10 @@ def main():
     #     "policy": policy.state_dict(),
     #     "mission_encoder": mission_encoder.state_dict(),
     #     "mission_adapter": mission_adapter.state_dict()
-    # }, f"ablation_model/lang_policy_{model}.pth")
+    # }, f"ablation_language_parameters_untrained_model/lang_policy_{model}.pth")
 
     # # Save the vectorizer
-    # with open(f"ablation_model/vectorizer_lang_{model}.pkl", "wb") as f:
+    # with open(f"ablation_language_parameters_untrained_model/vectorizer_lang_{model}.pkl", "wb") as f:
     #     pickle.dump(vectorizer, f)
 
     # print("Meta-training for unadapted lang policy finished")

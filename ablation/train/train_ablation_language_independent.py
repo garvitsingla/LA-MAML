@@ -207,10 +207,10 @@ def main():
     #     "policy": policy.state_dict(),
     #     "mission_encoder": mission_encoder.state_dict(),
     #     "mission_adapter": mission_adapter.state_dict()
-    # }, f"ablation_policy_only/lang_policy_{model}_{room_size}_{num_dists}_{max_steps}_{num_batches}.pth")
+    # }, f"ablation_language_independent_model/lang_policy_{model}_{room_size}_{num_dists}_{max_steps}_{num_batches}.pth")
 
     # # Save the vectorizer
-    # with open(f"ablation_policy_only/vectorizer_lang_{model}_{room_size}_{num_dists}_{max_steps}_{num_batches}.pkl", "wb") as f:
+    # with open(f"ablation_language_independent_model/vectorizer_lang_{model}_{room_size}_{num_dists}_{max_steps}_{num_batches}.pkl", "wb") as f:
     #     pickle.dump(vectorizer, f)
 
     # print("Meta-training for policy only finished")

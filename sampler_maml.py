@@ -11,7 +11,6 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 vectorizer = None
 mission_encoder = None
 
-
 def rollout_one_task(args):
     (make_env_fn, task, policy_cls, policy_kwargs,
      policy_state_dict, adapted_params_cpu, batch_size, gamma) = args
