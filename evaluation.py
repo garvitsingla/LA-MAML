@@ -114,11 +114,11 @@ def select_missions(env_name):
     return mission_map[env_name]
 
 
-env_name = "GoToOpen"
+env_name = "PickupDist"
 room_size = 7
-num_dists = 3
+num_dists = 2
 max_steps = 350
-delta_theta = 0.7
+delta_theta = 1
 
 missions = select_missions(env_name)
 make_env = partial(build_env, env_name, room_size, num_dists, max_steps, missions)
