@@ -4,7 +4,24 @@ import torch.nn as nn
 from concurrent.futures import ProcessPoolExecutor
 import gymnasium as gym
 from maml_rl.episode import BatchEpisodes
-from maml_rl.utils.reinforcement_learning import reinforce_loss
+
+import builtins, io
+from contextlib import contextmanager, redirect_stdout, redirect_stderr
+
+@contextmanager
+def silence_sampling_rejected():
+    real_print = builtins.print
+    buf = io.StringIO()
+    def filtered_print(*args, **kwargs):
+        if args and isinstance(args[0], str) and args[0].startswith("Sampling rejected: unreachable object"):
+            return
+        return real_print(*args, **kwargs)
+    builtins.print = filtered_print
+    try:
+        with redirect_stdout(buf), redirect_stderr(buf):
+            yield
+    finally:
+        builtins.print = real_print
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -26,7 +43,8 @@ def rollout_one_task(args):
     total_steps = 0
 
     for ep in range(batch_size):
-        obs, info = env.reset()
+        with silence_sampling_rejected():
+            obs, info = env.reset()
         done = False; steps = 0
         while not done:
             obs_vec = preprocess_obs(obs)

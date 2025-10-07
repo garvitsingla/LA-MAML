@@ -48,7 +48,6 @@ def rollout_one_task(args):
     for ep in range(batch_size):
         with silence_sampling_rejected():
             obs, info = env.reset()
-        # obs, info = env.reset()
         done, steps = False, 0
         while not done:
             obs_vec = preprocess_obs(obs)
