@@ -21,6 +21,25 @@ from maml_rl.utils.reinforcement_learning import reinforce_loss
 from maml_rl.episode import BatchEpisodes
 from maml_rl.baseline import LinearFeatureBaseline
 
+import builtins, io
+from contextlib import contextmanager, redirect_stdout, redirect_stderr
+
+@contextmanager
+def silence_sampling_rejected():
+    real_print = builtins.print
+    buf = io.StringIO()
+    def filtered_print(*args, **kwargs):
+        if args and isinstance(args[0], str) and args[0].startswith("Sampling rejected: unreachable object"):
+            return
+        return real_print(*args, **kwargs)
+    builtins.print = filtered_print
+    try:
+        with redirect_stdout(buf), redirect_stderr(buf):
+            yield
+    finally:
+        builtins.print = real_print
+
+
 seed = 42
 random.seed(seed)
 np.random.seed(seed)
@@ -114,8 +133,8 @@ def select_missions(env_name):
     return mission_map[env_name]
 
 
-env_name = "PickupDist"  
-room_size = 7
+env_name = "GoToLocal"  
+room_size = 5
 num_dists = 2
 max_steps = 350
 delta_theta = 1
@@ -223,7 +242,9 @@ def adapt_policy_for_task(task, policy, num_steps=1, fast_lr=0.5, batch_size=10,
     for _ in range(num_steps+1):
         batch = BatchEpisodes(batch_size=batch_size, gamma=0.99, device=device)
         for ep in range(batch_size):
-            obs, info = env.reset()
+            with silence_sampling_rejected():
+                obs, info = env.reset()
+            # obs, info = env.reset()
             done = False
             episode_obs = []
             episode_actions = []
@@ -256,7 +277,9 @@ def adapt_policy_for_task(task, policy, num_steps=1, fast_lr=0.5, batch_size=10,
 
 
 def evaluate_policy(env, policy,preprocess_obs=None, params=None, max_steps=max_steps, render=False):
-    obs, _ = env.reset()
+    with silence_sampling_rejected():
+        obs, info = env.reset()
+    # obs, _ = env.reset()
     steps = 0
     done = False
     while not done and steps < max_steps:

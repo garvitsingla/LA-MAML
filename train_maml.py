@@ -94,10 +94,10 @@ def select_missions_and_vocab(env):
 
 def main():
     
-    env_name = "GoToOpen"
-    room_size=7
-    num_dists=10
-    max_steps=600
+    env_name = "GoToLocal"
+    room_size=5
+    num_dists=2
+    max_steps=300
     num_workers=4
     num_batches=50
 
