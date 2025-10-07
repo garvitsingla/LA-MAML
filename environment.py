@@ -1,7 +1,7 @@
 from minigrid.envs.babyai.goto import GoToLocal, GoTo, GoToObjDoor
 from minigrid.envs.babyai.open import Open
 from minigrid.envs.babyai.other import ActionObjDoor
-from minigrid.envs.babyai.pickup import PickupDist
+from minigrid.envs.babyai.core.roomgrid_level import RoomGridLevel
 from minigrid.envs.babyai.putnext import PutNextLocal
 from minigrid.envs.babyai.core.verifier import GoToInstr, ObjDesc, OpenInstr, PickupInstr, BeforeInstr, AfterInstr, PutNextInstr
 from minigrid.core.world_object import Ball, Box, Key
@@ -137,7 +137,7 @@ class GoToLocalMissionEnv(GoToLocal):
 
 
 
-class PickupDistMissionEnv(PickupDist):
+class PickupDistMissionEnv(RoomGridLevel):
     def __init__(self, debug=False, room_size=7, num_dists=5,
                  num_rows=1, num_cols=1, max_steps=200, **kwargs):
         self.debug = debug

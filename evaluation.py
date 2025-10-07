@@ -114,7 +114,7 @@ def select_missions(env_name):
     return mission_map[env_name]
 
 
-env_name = "PickupDist"
+env_name = "PickupDist"  
 room_size = 7
 num_dists = 2
 max_steps = 350
