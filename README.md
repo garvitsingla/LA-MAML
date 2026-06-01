@@ -53,11 +53,11 @@ python ablation.py --env PickupDist --room-size 8 --num-dists 2 --max-steps 500
 
 ## 3. Train Models from Scratch (Optional)
 
-If you wish to train the models from scratch instead of using the provided pre-trained checkpoints, you can use the commands below.
+The models can be trained from scratch using the commands below.
 
 *(Note: Due to variations in hardware configurations training models from scratch on different systems may produce different results.)*
 
-*(The commands below use the `PickupDist` environment as an example. You can train on **any of the environments** by changing the `--env` parameter.)*
+*(The commands below use the `PickupDist` environment as an example.)*
 
 **Train LA-MAML Model:**
 ```bash
@@ -69,7 +69,7 @@ python train_language.py --env PickupDist --room-size 7 --num-dists 2 --max-step
 python train_maml.py --env PickupDist --room-size 7 --num-dists 2 --max-steps 500
 ```
 
-To run the comparison script (`lamaml_maml_comparison.py`) with models trained from scratch, make sure to train the standard MAML baseline for 2 and 3 gradient steps by passing the `--num-steps` flag:
+To run the comparison script (`lamaml_maml_comparison.py`) with models trained from scratch, the standard MAML baseline needs to be trained for 2 and 3 gradient steps by passing the `--num-steps` argument:
 
 ```bash
 python train_maml.py --env PickupDist --room-size 7 --num-dists 2 --max-steps 500 --num-steps 2
