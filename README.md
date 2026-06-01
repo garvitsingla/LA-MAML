@@ -51,7 +51,7 @@ python ablation.py --env PickupDist --room-size 8 --num-dists 2 --max-steps 500
 
 ---
 
-## 3. Train Models from Scratch (Optional)
+## 3. Train Models from Scratch
 
 The models can be trained from scratch using the commands below.
 
