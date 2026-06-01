@@ -1,15 +1,63 @@
+This repository contains the code to reproduce results for **LA-MAML** (Language-adapted Model-Agnostic Meta-Learning).
 
-This repository contains the code to reproduce results in supplementary material for **LA-MAML** (Language-adapted Model-Agnostic Meta-Learning).
+---
 
 ## 1. Installation
 
-Refer to the requirements.txt file to install dependencies.
+Refer to the requirements.txt file to install the required dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-## 2. Train Models
+---
 
-> **Note:** We do not provide any pre-trained models due to space constraints. In order to reproduce the results, **explicit training is required for all the models** before running the evaluation scripts.
+## 2. Evaluate Models & Reproduce Results (Direct Evaluation)
 
-*(The commands below use the `PickupDist` environment as a specific example, but models can be trained on **any of the environments as mentioned in the paper** by changing the `--env` parameter and its other parameters.)*
+All the pre-trained model checkpoints are already included in this repository under their respective folders (`lang_model/`, `maml_model/`, `anil_model/`, and `lang_policy_model/`). Therefore, **direct evaluation can be done** to reproduce the results without any initial training.
+
+*(The commands below use the `PickupDist` environment as a specific example, but evaluation can be executed on any of the trained environments: `GoToLocal`, `PickupDist`, `GoToObjDoor`, `GoToOpen`, `OpenDoor`, `OpenDoorLoc`, or `OpenDoorsOrder` by changing the `--env` parameter and its corresponding parameters).*
+
+### 2.1 Main Evaluation
+
+Evaluate and compare the performance of **LA-MAML** against the baselines (**MAML**, **ANIL**, and **Language-conditioned Policy**):
+
+*(Note: The generated results will be logged and appended to `evaluation_results.xlsx`.)*
+
+```bash
+# Evaluate for PickupDist on a test configuration (e.g., room-size=8, num-dists=2)
+python evaluation.py --env PickupDist --room-size 8 --num-dists 2 --max-steps 500 --delta-theta 0.3
+```
+
+### 2.2 Compare LA-MAML vs. MAML's Few-Shot Adaptation
+
+Compare the pre-trained **LA-MAML** policy against standard **MAML** 2-step and 3-step adaptation baselines:
+
+*(Note: The generated results will be logged and appended to `lamaml_maml_comparison_results.xlsx`.)*
+
+```bash
+# Compare LA-MAML with MAML 2-step and 3-step
+python lamaml_maml_comparison.py --env PickupDist --room-size 8 --num-dists 2 --max-steps 500 --delta-theta 0.3
+```
+
+### 2.3 Test Ablation
+
+Evaluate the ablation directly using the pre-trained models:
+
+*(Note: The generated results will be logged and appended to `ablation_results.xlsx`.)*
+
+```bash
+python ablation.py --env PickupDist --room-size 8 --num-dists 2 --max-steps 500
+```
+
+---
+
+## 3. Train Models from Scratch (Optional)
+
+If you wish to train the models from scratch instead of using the provided pre-trained checkpoints, you can use the commands below.
+
+*(Note: Due to variations in hardware configurations training models from scratch on different systems may produce different results.)*
+
+*(The commands below use the `PickupDist` environment as an example. You can train on **any of the environments** by changing the `--env` parameter.)*
 
 **Train LA-MAML Model:**
 ```bash
@@ -21,6 +69,13 @@ python train_language.py --env PickupDist --room-size 7 --num-dists 2 --max-step
 python train_maml.py --env PickupDist --room-size 7 --num-dists 2 --max-steps 500
 ```
 
+To run the comparison script (`lamaml_maml_comparison.py`) with models trained from scratch, make sure to train the standard MAML baseline for 2 and 3 gradient steps by passing the `--num-steps` flag:
+
+```bash
+python train_maml.py --env PickupDist --room-size 7 --num-dists 2 --max-steps 500 --num-steps 2
+python train_maml.py --env PickupDist --room-size 7 --num-dists 2 --max-steps 500 --num-steps 3
+```
+
 **Train ANIL Baseline:**
 ```bash
 python train_anil.py --env PickupDist --room-size 7 --num-dists 2 --max-steps 500
@@ -29,42 +84,4 @@ python train_anil.py --env PickupDist --room-size 7 --num-dists 2 --max-steps 50
 **Train Language-Conditioned Policy:**
 ```bash
 python train_language_conditioned_policy.py --env PickupDist --room-size 7 --num-dists 2 --max-steps 500
-```
-
----
-
-## 3. Evaluate Models & Reproduce Results
-
-Once all the respective models are completely trained, use the scripts below to evaluate them.
-
-### 3.1 Main Evaluation
-
-*(Note: The generated results will be logged and appended to `evaluation_results.xlsx`.)*
-
-```bash
-# Evaluate for PickupDist on any new configuration, say room-size=8, num-dists=2
-python evaluation.py --env PickupDist --room-size 8 --num-dists 2 --max-steps 500 --delta-theta 0.3
-```
-
-### 3.2 Compare LA-MAML vs. MAML's few-shot adaptation
-
-> **Note:** For this comparison script to work, an additional training is required for standard MAML baseline for 2 and 3 gradient steps (using the `--num-steps 2` and `--num-steps 3` flags during the training phase in Section 2).
-
-To compare the trained LA-MAML policy against the standard MAML 2-step and 3-step baselines, run the comparison script:
-
-*(Note: The generated results will be logged and appended to `lamaml_maml_comparison_results.xlsx`.)*
-
-**Example Command:**
-```bash
-python lamaml_maml_comparison.py --env PickupDist --room-size 8 --num-dists 2 --max-steps 500 --delta-theta 0.3
-```
-
-### 3.3 Test Ablation
-
-Evaluate the ablation using the following testing script.
-
-*(Note: The generated results will be logged and appended to `ablation_results.xlsx`.)*
-
-```bash
-python ablation.py --env PickupDist --room-size 8 --num-dists 2 --max-steps 500
 ```
