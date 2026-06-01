@@ -1,0 +1,255 @@
+import os
+import warnings
+os.environ["PYTHONWARNINGS"] = "ignore"
+warnings.filterwarnings("ignore")
+
+import torch.multiprocessing as mp
+from functools import partial
+import numpy as np
+import torch  
+import gc
+import time
+import json
+import os
+import matplotlib.pyplot as plt
+import random
+from maml_rl.baseline import LinearFeatureBaseline
+from maml_rl.policies.categorical_mlp import CategoricalMLPPolicy
+from maml_rl.metalearners.anil_trpo import ANILTRPO
+from sampler_anil import (BabyAIMissionTaskWrapper, 
+                          ANILMultiTaskSampler, 
+                          preprocess_obs)
+from environment import (LOCAL_MISSIONS,
+                         DOOR_MISSIONS,
+                         OPEN_DOOR_MISSIONS,
+                         DOOR_LOC_MISSIONS,
+                         PICKUP_MISSIONS,
+                         OPEN_DOORS_ORDER_MISSIONS)
+from environment import (GoToLocalMissionEnv,
+                         GoToOpenMissionEnv, 
+                         GoToObjDoorMissionEnv,  
+                         PickupDistMissionEnv,
+                         OpenDoorMissionEnv, 
+                         OpenDoorLocMissionEnv,
+                         OpenDoorsOrderMissionEnv)
+import argparse
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+p = argparse.ArgumentParser()
+p.add_argument("--env", dest="env_name",
+               choices=["GoToLocal","PickupDist","GoToObjDoor","GoToOpen","OpenDoor",
+                        "OpenDoorLoc","OpenDoorsOrder"],
+               default="GoToLocal")
+p.add_argument("--room-size", type=int, default=7)
+p.add_argument("--num-dists", type=int, default=3)
+p.add_argument("--max-steps", type=int, default=300)
+p.add_argument("--meta-iters", type=int, default=200, help="number of meta-batches")
+p.add_argument("--batch-size", type=int, default=40, help="episodes per meta-batch (per task)")
+p.add_argument("--num-workers", type=int, default=4)
+p.add_argument("--num-steps", type=int, default=1, help="number of inner loop gradient steps")
+p.add_argument("--fast-lr", type=float, default=1e-5, help="inner loop learning rate")
+
+args = p.parse_args()
+
+
+# Build the environment
+def build_env(env, room_size, num_dists, max_steps, missions):
+ 
+    if env == "GoToLocal":
+        base = GoToLocalMissionEnv(room_size=room_size, num_dists=num_dists, max_steps=max_steps)
+    elif env == "PickupDist":
+        base = PickupDistMissionEnv(room_size=room_size, num_dists=num_dists, max_steps=max_steps)
+    elif env == "GoToObjDoor":
+        base = GoToObjDoorMissionEnv(max_steps=max_steps, num_distractors=num_dists)
+    elif env == "GoToOpen":
+        base = GoToOpenMissionEnv(room_size=room_size, num_dists=num_dists, max_steps=max_steps)
+    elif env == "OpenDoor":
+        base = OpenDoorMissionEnv(room_size=room_size, max_steps=max_steps)
+    elif env == "OpenDoorLoc":
+        base = OpenDoorLocMissionEnv(room_size=room_size, max_steps=max_steps)
+    elif env == "OpenDoorsOrder":
+        base = OpenDoorsOrderMissionEnv(room_size=room_size)
+    else:
+        raise ValueError(f"Unknown env_name: {env}")
+
+    return BabyAIMissionTaskWrapper(base, missions=missions)
+
+
+def select_missions(env):
+
+    if env == "GoToLocal":
+        return LOCAL_MISSIONS
+    if env == "PickupDist":
+        return PICKUP_MISSIONS
+    if env == "GoToObjDoor":
+        return (LOCAL_MISSIONS + DOOR_MISSIONS)
+    if env == "GoToOpen":
+        return LOCAL_MISSIONS
+    if env == "OpenDoor":
+        return OPEN_DOOR_MISSIONS
+    if env == "OpenDoorLoc":
+        return (OPEN_DOOR_MISSIONS + DOOR_LOC_MISSIONS)
+    if env == "OpenDoorsOrder":
+        return OPEN_DOORS_ORDER_MISSIONS
+    raise ValueError(f"Unknown env for missions/vocab: {env}")
+
+
+def get_head_layer_prefix(hidden_sizes):
+    num_layers = len(hidden_sizes) + 1
+    return f'layer{num_layers}'
+
+
+def main():
+
+    def set_seed(seed: int):
+        os.environ["PYTHONHASHSEED"] = str(seed)
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+    seed = 1
+    set_seed(seed)
+
+    env_name  = args.env_name
+    room_size = args.room_size
+    num_dists = args.num_dists
+    max_steps = args.max_steps
+    num_workers = args.num_workers
+    num_batches = args.meta_iters
+    batch_size = args.batch_size
+    num_steps = args.num_steps
+    fast_lr = args.fast_lr
+
+    missions = select_missions(env_name)
+
+    make_env = partial(
+        build_env,
+        env_name,
+        room_size,
+        num_dists,
+        max_steps,
+        missions
+    )
+
+    env = make_env()
+
+    print(f"Using environment: {env_name}\n"
+          f"room_size: {room_size}  num_dists: {num_dists}  max_steps: {max_steps}  ")
+
+    # Policy setup 
+    obs, _ = env.reset()
+    vec = preprocess_obs(obs)
+    input_size = vec.shape[0]
+    hidden_sizes = (64, 64)
+    nonlinearity = torch.nn.functional.tanh
+    output_size = env.action_space.n
+
+    policy = CategoricalMLPPolicy(
+        input_size=input_size,
+        output_size=output_size,
+        hidden_sizes=hidden_sizes,
+        nonlinearity=nonlinearity,
+    ).to(device)
+    policy.share_memory()
+    baseline = LinearFeatureBaseline(input_size).to(device)
+    
+    # Determine head layer prefix
+    head_layer_prefix = get_head_layer_prefix(hidden_sizes)
+    print(f"\n[ANIL Config] Head layer prefix: {head_layer_prefix}")
+    
+    sampler = ANILMultiTaskSampler(
+        env=env,
+        env_fn=make_env,
+        batch_size=batch_size,         
+        policy=policy,
+        baseline=baseline,
+        seed=1,
+        num_workers=num_workers,
+        head_layer_prefix=head_layer_prefix  
+    )
+
+    meta_learner = ANILTRPO(
+        policy=policy, 
+        fast_lr=1e-5, 
+        first_order=True, 
+        device=device,
+        head_layer_prefix=head_layer_prefix  
+    )
+
+    avg_steps_per_batch = []
+    std_steps_per_batch = []
+    meta_batch_size = globals().get("meta_batch_size") or min(5, len(env.missions))
+
+    start_time = time.time()
+
+    for batch in range(num_batches):
+        print(f"\nMeta-batch {batch+1}/{num_batches}")
+        
+        train_episodes, valid_episodes, step_counts = sampler.sample(
+            meta_batch_size=meta_batch_size,
+            num_steps=num_steps,
+            fast_lr=1e-4,
+            gamma=0.99,
+            gae_lambda=1.0,
+            device=device
+        )
+
+        avg_steps = np.mean(step_counts) if len(step_counts) > 0 else float('nan')
+        avg_steps_per_episode = avg_steps / sampler.batch_size 
+        avg_steps_per_batch.append(avg_steps_per_episode)
+        std_steps = np.std([s / sampler.batch_size for s in step_counts]) if len(step_counts) > 0 else 0.0
+        std_steps_per_batch.append(std_steps)
+        print(f"Average steps in Meta-batch {batch+1}: {avg_steps_per_episode:.2f}")
+
+        meta_learner.step(train_episodes, valid_episodes)
+
+        del train_episodes, valid_episodes, step_counts
+        
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+
+    end_time = time.time()
+    training_time = end_time - start_time
+    time_per_iteration = training_time / num_batches
+    print(f"\n{'='*60}")
+    print(f"Total training time: {training_time:.2f} seconds")
+    print(f"Average time per iteration: {time_per_iteration:.2f} seconds")
+    print(f"{'='*60}")
+
+    # Save the trained meta-policy parameters
+    os.makedirs("anil_model", exist_ok=True)
+    ckpt_base = f"anil_model/anil_{env_name}_{num_steps}"
+    torch.save(policy.state_dict(), ckpt_base + ".pth")
+
+
+    # plot
+    env_dir = os.path.join("metrics", env_name)
+    os.makedirs(env_dir, exist_ok=True) 
+
+    np.save(os.path.join(env_dir, "anil_avg_steps.npy"), np.array(avg_steps_per_batch))
+    np.save(os.path.join(env_dir, "anil_std_steps.npy"), np.array(std_steps_per_batch))
+    with open(os.path.join(env_dir, "anil_meta.json"), "w") as f:
+        json.dump({"label" : "ANIL", "env" : env_name}, f)
+    
+
+    # Plot the average steps per batch
+    plt.plot(avg_steps_per_batch)
+    plt.xlabel("Meta-batch")
+    plt.ylabel("Average steps per episode")
+    plt.title("Average steps per episode per meta-batch")
+    plt.savefig(os.path.join(env_dir, "anil_plot.png"))
+    plt.close()
+
+
+if __name__ == "__main__":
+    mp.set_start_method("spawn", force=True)
+    main()
