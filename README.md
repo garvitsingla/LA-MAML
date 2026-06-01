@@ -11,7 +11,7 @@ pip install -r requirements.txt
 
 ---
 
-## 2. Evaluate Models & Reproduce Results (Direct Evaluation)
+## 2. Evaluate Models & Reproduce Results
 
 All the pre-trained model checkpoints are already included in this repository under their respective folders (`lang_model/`, `maml_model/`, `anil_model/`, and `lang_policy_model/`). Therefore, **direct evaluation can be done** to reproduce the results without any initial training.
 
